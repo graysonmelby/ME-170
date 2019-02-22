@@ -1,0 +1,195 @@
+
+% Assumptions
+
+% Greenhouse walls are 6in SIPs, all 10*10, no heat loss to ground.
+% Neglect convective heat loss from greenhouse until other group does
+% calculation
+
+T_gh = 273+15.5; %Temp. required in greenhouse is 15.5 deg C [273+15.5 K]
+T_outside = -10 + 273; %Min. outside temp. is -10 deg C [273-10K]
+V_gh = 3.048^3; %Greenhouse volume is 10x10x10 ft [3.048^3 m^3]
+A_gh = (3.048^2)*5; %Greenhouse surface area [m^2] (assume flat square roof of same materia)
+k_gh = 0.24; %Thermal resistance for 6in SIP [K/W] (https://www.permatherm.net/panel-technical-information/thermal-resistance-tables-polystyrene)
+L_gh = 0.1524; %SIP thickness [m]
+
+
+T_storage = zeros(1,13) + (273+80); %Initial storage temperature [K]
+T_air_out = 20+273; %temp of air entering greenhouse is 20 deg C [273+20 K]
+T_air_in = T_gh; %[K]
+
+t_req = 7*24*3600; %1 week storage time [s]
+t_storage = 0; %[s]
+
+c_magbricks = 1150; %specific heat of magnesia bricks [J/kg*K]
+rho_magbricks = 3000; %[kg/m^3]
+c_silbricks = 1000; %[J/kg*K]
+rho_silbricks = 1820; %[kg/m^3]
+c_concrete = 850; %[J/kg*K]
+rho_concrete = 2200; %[kg/m^3]
+c_sand = 830; %[J/kg*K]
+rho_sand = 1602; %[kg/m^3]
+
+k_ins = 0.04; %[W/mK] storage insulation fiberglass http://hyperphysics.phy-astr.gsu.edu/hbase/Tables/thrcn.html
+L_ins = .012; %[m]
+storage_sizes = (0:0.25:3) %array of potential storage sizes ranging from 0.25m^3 to 3m^3 at 0.25m^3 increments
+V_storage = storage_sizes .^3; %[m^2]
+A_storage = (storage_sizes .^2) .* 5;  %[m^3]
+m_storage = V_storage .* rho_magbricks; %[kg]
+Q_dot_loss_gh = k_gh*A_gh*(T_gh-T_outside)/L_gh %Rate of heat loss from greenhouse to surroundings [W]
+Q_required = t_req*Q_dot_loss_gh; %Heat input required to heat greenhouse for one week [J]
+
+r_pipe = .005; %[m]
+pipe_circ = r_pipe*2*pi; %pipe circumference [m^2]
+L_pipe = storage_sizes.*10; %[m^2]
+SA_pipe = pipe_circ*L_pipe; %pipe surface area [m^2]
+k_pipe = 237; %thermal conductivity of aluminum pipe [W/mK] (engineeringtoolbox.com) 
+c_air = 718; %average isochoric specific heat of air [J/kg*K] (engineeringtoolbox.com)
+
+m_dot = Q_dot_loss_gh/(c_air*(T_air_out - T_gh)); %mass flow rate of air required to account for greenhouse heat loss and maintain constant temp with 20deg C air [K]
+temp_matrix = zeros(13,t_req);%to store temperature values over time for each material
+
+%initialize 4 figures
+f1 = figure;
+f2 = figure;
+f3 = figure;
+f4 = figure;
+figure(f1);
+
+%vector for scaling x-axis on figures from secs to hours
+time_vector = (0.00027777777:0.00027777777:168);
+
+%iterate one second at a time over 7 days
+while t_storage <  t_req
+    Q_loss_storage = k_ins.*A_storage.*(T_storage-T_outside)./L_ins; %Heat loss from storage to surroundings [J]
+    Q_brick_to_air = k_pipe.*SA_pipe.*(T_storage-T_gh)./L_pipe; %Heat transferred from storage to gh [J]
+    Q_net_out = Q_loss_storage + Q_brick_to_air; %Total heat removed from storage [J]
+    T_storage = T_storage - Q_net_out./(m_storage.*c_magbricks); %Update storage temperature [K]
+    temp_matrix(:,t_storage+1) = T_storage; %Add value to temperature matrix
+    t_storage = t_storage + 1;  %Add 1 second to counter
+end
+
+%create plot for 12 materials
+for i=2:13
+    if i<8
+        plot(time_vector, temp_matrix(i,:), 'LineWidth',2);
+    end
+    if  i>=8
+        plot(time_vector, temp_matrix(i,:), '--', 'LineWidth',2);
+    end
+    hold on;
+end
+
+%plot labels
+title ('Magnesia Brick Storage Temperature vs. Time');
+xlabel('Time [hours]');
+ylabel('Brick Temperature [K]');
+legend('Brick Volume = 0.0156 m^3', 'Brick Volume = 0.125 m^3', 'Brick Volume = 0.422 m^3', 'Brick Volume = 1.00 m^3', 'Brick Volume = 1.95 m^3', 'Brick Volume = 3.38 m^3', 'Brick Volume = 5.36 m^3', 'Brick Volume = 8.00 m^3','Brick Volume = 11.39 m^3', 'Brick Volume = 15.63 m^3','Brick Volume = 20.80 m^3', 'Brick Volume = 27 m^3');
+
+
+
+%repeat for silica bricks
+T_storage_sil = zeros(1,13) + (273+80);
+t_storage = 0;
+figure(f2);
+m_storage = V_storage .* rho_silbricks; %[kg]
+temp_matrix_sil = zeros(13,t_req);
+
+while t_storage < t_req
+    Q_loss_storage = k_ins.*A_storage.*(T_storage_sil-T_outside)./L_ins; %Rate of heat loss from storage to surroundings [W]
+    Q_brick_to_air = k_pipe.*SA_pipe.*(T_storage_sil-T_gh)./L_pipe;
+    Q_net_out = Q_loss_storage + Q_brick_to_air;
+    T_storage_sil = T_storage_sil - Q_net_out./(m_storage.*c_silbricks);
+    temp_matrix_sil(:,t_storage+1) = T_storage_sil;
+    t_storage = t_storage + 1;
+end
+
+for i=2:13
+    if i<8
+        plot(time_vector, temp_matrix(i,:), 'LineWidth',2);
+    end
+    if  i>=8
+        plot(time_vector, temp_matrix(i,:), '--', 'LineWidth',2);
+    end
+    hold on;
+end
+
+title ('Silica Brick Storage Temperature vs. Time');
+xlabel('Time [hours]');
+ylabel('Brick Temperature [K]');
+legend('Brick Volume = 0.0156 m^3', 'Brick Volume = 0.125 m^3', 'Brick Volume = 0.422 m^3', 'Brick Volume = 1.00 m^3', 'Brick Volume = 1.95 m^3', 'Brick Volume = 3.38 m^3', 'Brick Volume = 5.36 m^3', 'Brick Volume = 8.00 m^3','Brick Volume = 11.39 m^3', 'Brick Volume = 15.63 m^3','Brick Volume = 20.80 m^3', 'Brick Volume = 27 m^3');
+
+
+
+% repeat for concrete
+
+T_storage_con = zeros(1,13) + (273+80);
+t_storage = 0;
+figure(f3);
+m_storage = V_storage .* rho_concrete; %[kg]
+temp_matrix_con = zeros(13,t_req);
+
+while t_storage < t_req
+    Q_loss_storage = k_ins.*A_storage.*(T_storage_con-T_outside)./L_ins; %Rate of heat loss from storage to surroundings [W]
+    Q_brick_to_air = k_pipe.*SA_pipe.*(T_storage_con-T_gh)./L_pipe;
+    Q_net_out = Q_loss_storage + Q_brick_to_air;
+    T_storage_con = T_storage_con - Q_net_out./(m_storage.*c_concrete);
+    temp_matrix_con(:,t_storage+1) = T_storage_con;
+    t_storage = t_storage + 1;
+end
+
+for i=2:13
+    if i<8
+        plot(time_vector, temp_matrix(i,:), 'LineWidth',2);
+    end
+    if  i>=8
+        plot(time_vector, temp_matrix(i,:), '--', 'LineWidth',2);
+    end
+    hold on;
+end
+
+title ('Concrete Storage Temperature vs. Time');
+xlabel('Time [hours]');
+ylabel('Concrete Temperature [K]');
+legend('Concrete Volume = 0.0156 m^3', 'Concrete Volume = 0.125 m^3', 'Concrete Volume = 0.422 m^3', 'Concrete Volume = 1.00 m^3', 'Concrete Volume = 1.95 m^3', 'Concrete Volume = 3.38 m^3', 'Concrete Volume = 5.36 m^3', 'Concrete Volume = 8.00 m^3','Concrete Volume = 11.39 m^3', 'Concrete Volume = 15.63 m^3','Concrete Volume = 20.80 m^3', 'Concrete Volume = 27 m^3');
+
+
+
+%repeat for sand
+
+T_storage_sand = zeros(1,13) + (273+80);
+t_storage = 0;
+figure(f4);
+m_storage = V_storage .* rho_sand; %[kg]
+temp_matrix_sand = zeros(13,t_req);
+
+while t_storage < t_req
+    Q_loss_storage = k_ins.*A_storage.*(T_storage_sand-T_outside)./L_ins; %Rate of heat loss from storage to surroundings [W]
+    Q_brick_to_air = k_pipe.*SA_pipe.*(T_storage_sand-T_gh)./L_pipe;
+    Q_net_out = Q_loss_storage + Q_brick_to_air;
+    T_storage_sand = T_storage_sand - Q_net_out./(m_storage.*c_sand);
+    temp_matrix_sand(:,t_storage+1) = T_storage_sand;
+    t_storage = t_storage + 1;
+end
+
+for i=2:13
+    if i<8
+        plot(time_vector, temp_matrix(i,:), 'LineWidth',2);
+    end
+    if  i>=8
+        plot(time_vector, temp_matrix(i,:), '--', 'LineWidth',2);
+    end
+    hold on;
+end
+title ('Sand Storage Temperature vs. Time');
+xlabel('Time [hours]');
+ylabel('Sand Temperature [K]');
+legend('Sand Volume = 0.0156 m^3', 'Sand Volume = 0.125 m^3', 'Sand Volume = 0.422 m^3', 'Sand Volume = 1.00 m^3', 'Sand Volume = 1.95 m^3', 'Sand Volume = 3.38 m^3', 'Sand Volume = 5.36 m^3', 'Sand Volume = 8.00 m^3','Sand Volume = 11.39 m^3', 'Sand Volume = 15.63 m^3','Sand Volume = 20.80 m^3', 'Sand Volume = 27 m^3');
+
+
+
+
+
+
+
+
+
